@@ -1,0 +1,531 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum SystemRole {
+  USER
+  ADMIN
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  ANALYST
+  MEMBER
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+enum Channel {
+  META
+  GOOGLE
+  TIKTOK
+  LINKEDIN
+  EMAIL
+  AFFILIATE
+  ORGANIC
+  OTHER
+}
+
+enum DeviceCategory {
+  MOBILE
+  TABLET
+  DESKTOP
+  BOT
+  UNKNOWN
+}
+
+enum ConversionType {
+  PAGE_VIEW
+  LEAD
+  SIGNUP
+  PURCHASE
+  CUSTOM
+}
+
+enum IntegrationProvider {
+  META_ADS
+  GOOGLE_ADS
+  TIKTOK_ADS
+  CUSTOM
+}
+
+enum IntegrationStatus {
+  NOT_CONNECTED
+  PENDING
+  CONNECTED
+  ERROR
+  DISCONNECTED
+}
+
+enum AutomationAction {
+  SEND_NOTIFICATION
+  FLAG_CAMPAIGN
+  PAUSE_CAMPAIGN
+  CHANGE_BUDGET
+  CHANGE_DESTINATION
+}
+
+enum AutomationStatus {
+  ACTIVE
+  PAUSED
+  DRAFT
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+}
+
+enum BillingInterval {
+  MONTH
+  YEAR
+  ONE_TIME
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+enum NotificationType {
+  PERFORMANCE
+  TRACKING
+  INTEGRATION
+  BILLING
+  AUTOMATION
+  SYSTEM
+}
+
+model User {
+  id                  String            @id @default(cuid())
+  email               String            @unique
+  name                String
+  passwordHash        String
+  emailVerifiedAt     DateTime?
+  systemRole          SystemRole        @default(USER)
+  locale              String            @default("fr")
+  country             String?
+  company              String?
+  advertisingObjective String?
+  monthlyAdSpend      String?
+  preferredChannels   String[]          @default([])
+  onboardingCompletedAt DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  sessions            Session[]
+  memberships         WorkspaceMember[]
+  notifications       Notification[]
+  auditLogs            AuditLog[]        @relation("AuditActor")
+  passwordResets       PasswordResetToken[]
+  verificationTokens  EmailVerificationToken[]
+
+  @@index([createdAt])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  ipHash    String?
+  userAgent String?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, expiresAt])
+}
+
+model PasswordResetToken {
+  id String @id @default(cuid())
+  tokenHash String @unique
+  userId String
+  expiresAt DateTime
+  usedAt DateTime?
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, expiresAt])
+}
+
+model EmailVerificationToken {
+  id String @id @default(cuid())
+  tokenHash String @unique
+  userId String
+  expiresAt DateTime
+  usedAt DateTime?
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, expiresAt])
+}
+
+model Workspace {
+  id          String             @id @default(cuid())
+  name        String
+  slug        String             @unique
+  currency    String             @default("EUR")
+  timezone    String             @default("Africa/Abidjan")
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  members     WorkspaceMember[]
+  campaigns   Campaign[]
+  links       TrackingLink[]
+  conversions ConversionEvent[]
+  integrations Integration[]
+  automations AutomationRule[]
+  notifications Notification[]
+  subscriptions Subscription[]
+  payments    Payment[]
+  invoices    Invoice[]
+  auditLogs    AuditLog[]
+  apiKeys      WorkspaceApiKey[]
+}
+
+model WorkspaceApiKey {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  keyPrefix   String
+  keyHash     String    @unique
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  @@index([workspaceId, revokedAt])
+}
+
+model WorkspaceMember {
+  id          String        @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        WorkspaceRole @default(MEMBER)
+  joinedAt    DateTime      @default(now())
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}
+
+model Campaign {
+  id             String         @id @default(cuid())
+  workspaceId    String
+  name           String
+  description    String?
+  status         CampaignStatus @default(DRAFT)
+  channel        Channel        @default(OTHER)
+  budget         Decimal?       @db.Decimal(14, 2)
+  spend          Decimal        @default(0) @db.Decimal(14, 2)
+  revenue        Decimal        @default(0) @db.Decimal(14, 2)
+  currency       String         @default("EUR")
+  startDate      DateTime?
+  endDate        DateTime?
+  destinationUrl String?
+  utmSource      String?
+  utmMedium      String?
+  utmCampaign    String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  workspace      Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  links          TrackingLink[]
+  clicks         ClickEvent[]
+  conversions    ConversionEvent[]
+  externalCampaigns ExternalCampaign[]
+  automationExecutions AutomationExecution[]
+  @@index([workspaceId, status])
+  @@index([workspaceId, createdAt])
+}
+
+model TrackingLink {
+  id             String        @id @default(cuid())
+  workspaceId    String
+  campaignId     String?
+  name           String
+  slug           String        @unique
+  destinationUrl String
+  utmSource      String?
+  utmMedium      String?
+  utmCampaign    String?
+  utmTerm        String?
+  utmContent     String?
+  tags           String[]      @default([])
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  workspace      Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  campaign       Campaign?     @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  routingRules   RoutingRule[]
+  clicks         ClickEvent[]
+  conversions    ConversionEvent[]
+  @@index([workspaceId, createdAt])
+  @@index([campaignId])
+}
+
+model RoutingRule {
+  id             String         @id @default(cuid())
+  trackingLinkId String
+  name           String
+  priority       Int            @default(0)
+  isActive       Boolean        @default(true)
+  device         DeviceCategory?
+  country        String?
+  source         String?
+  parameterKey   String?
+  parameterValue String?
+  destinationUrl String
+  weight         Int?
+  startsAt       DateTime?
+  endsAt         DateTime?
+  trackingLink   TrackingLink   @relation(fields: [trackingLinkId], references: [id], onDelete: Cascade)
+  @@index([trackingLinkId, isActive, priority])
+}
+
+model ClickEvent {
+  id             String         @id @default(cuid())
+  workspaceId    String
+  campaignId     String?
+  trackingLinkId String
+  occurredAt     DateTime       @default(now())
+  visitorHash    String?
+  referrer       String?
+  source         String?
+  medium         String?
+  utmCampaign    String?
+  device         DeviceCategory @default(UNKNOWN)
+  browser        String?
+  os             String?
+  country        String?
+  region         String?
+  trackingLink   TrackingLink   @relation(fields: [trackingLinkId], references: [id], onDelete: Cascade)
+  campaign       Campaign?      @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  conversions    ConversionEvent[]
+  @@index([workspaceId, occurredAt])
+  @@index([campaignId, occurredAt])
+  @@index([trackingLinkId, occurredAt])
+  @@index([visitorHash, occurredAt])
+}
+
+model ConversionEvent {
+  id             String         @id @default(cuid())
+  workspaceId    String
+  campaignId     String?
+  trackingLinkId String?
+  clickEventId   String?
+  type           ConversionType
+  customName     String?
+  value          Decimal?       @db.Decimal(14, 2)
+  currency       String?
+  externalId     String?
+  metadata       Json?
+  occurredAt     DateTime       @default(now())
+  workspace      Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  campaign       Campaign?      @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  trackingLink   TrackingLink?  @relation(fields: [trackingLinkId], references: [id], onDelete: SetNull)
+  clickEvent     ClickEvent?    @relation(fields: [clickEventId], references: [id], onDelete: SetNull)
+  @@unique([workspaceId, externalId])
+  @@index([workspaceId, occurredAt])
+  @@index([campaignId, occurredAt])
+}
+
+model Integration {
+  id                  String            @id @default(cuid())
+  workspaceId         String
+  provider            IntegrationProvider
+  status              IntegrationStatus @default(NOT_CONNECTED)
+  encryptedCredentials String?
+  tokenExpiresAt      DateTime?
+  lastSyncAt          DateTime?
+  errorMessage        String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  workspace           Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  adAccounts          ExternalAdAccount[]
+  @@unique([workspaceId, provider])
+}
+
+model ExternalAdAccount {
+  id            String      @id @default(cuid())
+  integrationId String
+  externalId    String
+  name          String
+  currency      String?
+  timezone      String?
+  metadata      Json?
+  integration   Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  campaigns     ExternalCampaign[]
+  @@unique([integrationId, externalId])
+}
+
+model ExternalCampaign {
+  id                  String            @id @default(cuid())
+  externalAdAccountId String
+  campaignId          String?
+  externalId          String
+  name                String
+  status              String?
+  metrics             Json?
+  syncedAt            DateTime          @default(now())
+  adAccount           ExternalAdAccount @relation(fields: [externalAdAccountId], references: [id], onDelete: Cascade)
+  campaign            Campaign?         @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  @@unique([externalAdAccountId, externalId])
+}
+
+model AutomationRule {
+  id          String             @id @default(cuid())
+  workspaceId String
+  name        String
+  status      AutomationStatus   @default(DRAFT)
+  conditions  Json
+  action      AutomationAction
+  actionConfig Json?
+  lastRunAt   DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  workspace   Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  executions  AutomationExecution[]
+  @@index([workspaceId, status])
+}
+
+model AutomationExecution {
+  id               String         @id @default(cuid())
+  automationRuleId String
+  campaignId       String?
+  matched          Boolean
+  result           Json?
+  error             String?
+  executedAt       DateTime       @default(now())
+  rule             AutomationRule @relation(fields: [automationRuleId], references: [id], onDelete: Cascade)
+  campaign         Campaign?      @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  @@index([automationRuleId, executedAt])
+}
+
+model Notification {
+  id          String           @id @default(cuid())
+  workspaceId String
+  userId      String?
+  type        NotificationType
+  title       String
+  message     String
+  actionUrl   String?
+  readAt      DateTime?
+  createdAt   DateTime         @default(now())
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([workspaceId, readAt, createdAt])
+  @@index([userId, readAt])
+}
+
+model Plan {
+  id              String          @id @default(cuid())
+  name            String
+  slug            String          @unique
+  description     String?
+  price           Decimal         @db.Decimal(14, 2)
+  currency        String          @default("EUR")
+  billingInterval BillingInterval
+  trialDays       Int             @default(0)
+  limits          Json
+  features        Json
+  isActive        Boolean         @default(true)
+  sortOrder       Int             @default(0)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  subscriptions   Subscription[]
+}
+
+model Subscription {
+  id                 String             @id @default(cuid())
+  workspaceId        String
+  planId             String
+  status             SubscriptionStatus @default(TRIALING)
+  provider           String?
+  providerCustomerId String?
+  providerReference  String?
+  trialEndsAt        DateTime?
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  cancelAtPeriodEnd  Boolean            @default(false)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  workspace          Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  plan               Plan               @relation(fields: [planId], references: [id])
+  @@index([workspaceId, status])
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  workspaceId       String
+  provider          String
+  providerReference String?       @unique
+  amount            Decimal       @db.Decimal(14, 2)
+  currency          String
+  status            PaymentStatus @default(PENDING)
+  method            String?
+  metadata          Json?
+  paidAt            DateTime?
+  createdAt         DateTime      @default(now())
+  workspace         Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invoice           Invoice?
+  @@index([workspaceId, createdAt])
+}
+
+model Invoice {
+  id          String    @id @default(cuid())
+  workspaceId String
+  paymentId   String?   @unique
+  number      String    @unique
+  amount      Decimal   @db.Decimal(14, 2)
+  currency    String
+  status      String
+  issuedAt    DateTime  @default(now())
+  dueAt       DateTime?
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  payment     Payment?  @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  @@index([workspaceId, issuedAt])
+}
+
+model AuditLog {
+  id          String    @id @default(cuid())
+  workspaceId String?
+  actorId     String?
+  action      String
+  entityType  String
+  entityId    String?
+  metadata    Json?
+  ipHash      String?
+  createdAt   DateTime  @default(now())
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor       User?      @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  @@index([workspaceId, createdAt])
+  @@index([actorId, createdAt])
+}
+
+model SystemSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       Json
+  isPublic    Boolean  @default(false)
+  updatedAt   DateTime @updatedAt
+}
+
+model FeatureFlag {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  description String?
+  enabled     Boolean  @default(false)
+  rules       Json?
+  updatedAt   DateTime @updatedAt
+}

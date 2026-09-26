@@ -1,0 +1,1 @@
+export const fr={common:{create:"Créer",cancel:"Annuler",save:"Enregistrer",loading:"Chargement…",empty:"Aucune donnée"},navigation:{dashboard:"Vue d’ensemble",campaigns:"Campagnes",links:"Liens de tracking",analytics:"Analytics",automations:"Automatisations",billing:"Facturation",settings:"Paramètres"}} as const;

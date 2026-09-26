@@ -1,0 +1,5 @@
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { db } from "@/lib/db";
+import { assertSameOrigin, hashToken, randomToken, rateLimit } from "@/lib/security";
+export async function POST(request:NextRequest){try{assertSameOrigin(request);const ip=request.headers.get("x-forwarded-for")?.split(",")[0]??"local";if(!rateLimit(`forgot:${ip}`,5,3600000))return NextResponse.json({message:"Si ce compte existe, un lien sera envoyé."});const {email}=z.object({email:z.email().toLowerCase()}).parse(await request.json());const user=await db.user.findUnique({where:{email}});if(user){const token=randomToken();await db.passwordResetToken.create({data:{userId:user.id,tokenHash:hashToken(token),expiresAt:new Date(Date.now()+3600000)}});if(process.env.NODE_ENV!=="production")console.info(`Password reset token for ${email}: ${token}`)}return NextResponse.json({message:"Si ce compte existe, un lien de réinitialisation sera envoyé."})}catch{return NextResponse.json({message:"Si ce compte existe, un lien de réinitialisation sera envoyé."})}}

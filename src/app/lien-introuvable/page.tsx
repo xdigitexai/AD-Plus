@@ -1,0 +1,1 @@
+import Link from "next/link";export default function MissingLink(){return <main className="simple-page"><div><h1>Lien indisponible</h1><p>Ce lien de suivi n’existe pas ou n’est plus actif.</p><Link className="btn primary" href="/">Retour à ADPulse</Link></div></main>}

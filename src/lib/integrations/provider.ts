@@ -1,0 +1,3 @@
+export type AdMetrics={spend:number;impressions:number;reach:number;clicks:number;ctr:number;cpc:number;conversions:number;cpa:number;roas:number};
+export interface AdvertisingProvider{readonly name:string;getAuthorizationUrl(state:string):Promise<string>;exchangeCode(code:string):Promise<{accessToken:string;expiresAt?:Date}>;listAccounts(accessToken:string):Promise<Array<{externalId:string;name:string;currency?:string}>>;syncCampaigns(accessToken:string,accountId:string):Promise<void>;getInsights(accessToken:string,accountId:string,from:Date,to:Date):Promise<AdMetrics>}
+export class ProviderNotConfiguredError extends Error{constructor(provider:string){super(`${provider} is not configured`);this.name="ProviderNotConfiguredError"}}
