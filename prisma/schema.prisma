@@ -177,7 +177,7 @@ model Workspace {
   id          String             @id @default(cuid())
   name        String
   slug        String             @unique
-  currency    String             @default("EUR")
+  currency    String             @default("USD")
   timezone    String             @default("Africa/Abidjan")
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
@@ -230,7 +230,7 @@ model Campaign {
   budget         Decimal?       @db.Decimal(14, 2)
   spend          Decimal        @default(0) @db.Decimal(14, 2)
   revenue        Decimal        @default(0) @db.Decimal(14, 2)
-  currency       String         @default("EUR")
+  currency       String         @default("USD")
   startDate      DateTime?
   endDate        DateTime?
   destinationUrl String?
@@ -434,7 +434,7 @@ model Plan {
   slug            String          @unique
   description     String?
   price           Decimal         @db.Decimal(14, 2)
-  currency        String          @default("EUR")
+  currency        String          @default("USD")
   billingInterval BillingInterval
   trialDays       Int             @default(0)
   limits          Json
@@ -474,12 +474,38 @@ model Payment {
   currency          String
   status            PaymentStatus @default(PENDING)
   method            String?
+  gateway           String?
+  providerStatus    String?
+  fee               Decimal?      @db.Decimal(14, 2)
+  netAmount         Decimal?      @db.Decimal(14, 2)
+  phone             String?
+  redirectUrl       String?
   metadata          Json?
   paidAt            DateTime?
   createdAt         DateTime      @default(now())
   workspace         Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   invoice           Invoice?
+  events            PaymentEvent[]
   @@index([workspaceId, createdAt])
+  @@index([provider, status])
+}
+
+model PaymentEvent {
+  id                String   @id @default(cuid())
+  paymentId         String?
+  provider          String
+  providerReference String
+  event             String
+  status            String
+  amount            Decimal  @db.Decimal(14, 2)
+  fee               Decimal? @db.Decimal(14, 2)
+  netAmount         Decimal? @db.Decimal(14, 2)
+  currency          String
+  payload           Json
+  receivedAt        DateTime @default(now())
+  payment           Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  @@unique([provider, providerReference, event])
+  @@index([providerReference])
 }
 
 model Invoice {

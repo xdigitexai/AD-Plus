@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { createSession, hashPassword } from "@/lib/auth";
 import { assertSameOrigin, rateLimit } from "@/lib/security";
 import { slugify } from "@/lib/format";
+import { APP_CURRENCY } from "@/lib/currency";
 
 const schema = z.object({ name: z.string().trim().min(2).max(100), email: z.email().toLowerCase(), password: z.string().min(10).max(128) });
 export async function POST(request: NextRequest) {
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest) {
     const baseSlug = slugify(input.name) || "workspace";
     const suffix = Math.random().toString(36).slice(2, 7);
     const user = await db.$transaction(async (tx) => {
-      const plan = await tx.plan.upsert({ where: { slug: "free-trial" }, update: {}, create: { name: "Essai gratuit", slug: "free-trial", description: "Découvrir ADPulse", price: 0, currency: "EUR", billingInterval: "MONTH", trialDays: 14, limits: { clicks: 1000, workspaces: 1 }, features: ["tracking", "analytics", "campaigns"], sortOrder: 0 } });
+      const plan = await tx.plan.upsert({ where: { slug: "free-trial" }, update: {}, create: { name: "Essai gratuit", slug: "free-trial", description: "Découvrir ADPulse", price: 0, currency: APP_CURRENCY, billingInterval: "MONTH", trialDays: 14, limits: { clicks: 1000, workspaces: 1 }, features: ["tracking", "analytics", "campaigns"], sortOrder: 0 } });
       const created = await tx.user.create({ data: { name: input.name, email: input.email, passwordHash: await hashPassword(input.password) } });
       const workspace = await tx.workspace.create({ data: { name: `Espace de ${input.name}`, slug: `${baseSlug}-${suffix}`, members: { create: { userId: created.id, role: "OWNER" } } } });
       await tx.subscription.create({ data: { workspaceId: workspace.id, planId: plan.id, status: "TRIALING", trialEndsAt: new Date(Date.now() + 14 * 86_400_000) } });
